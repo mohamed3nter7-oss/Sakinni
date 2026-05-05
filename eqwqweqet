@@ -1,0 +1,189 @@
+[33mcommit f6635e39ed12684851920bb6a63504631c4d1ef6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32myahya[m[33m, [m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m
+Author: yahya <yayagaming239@gmail.com>
+Date:   Fri Nov 21 14:04:35 2025 +0200
+
+    changing the text in the header
+
+[33mcommit ff57e73677141f2b257659d6264f18123ddfb508[m
+Merge: 46568a4 0afcb4e
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Thu Nov 20 20:45:35 2025 +0200
+
+    Merge pull request #8 from keroromanysamir/main
+    
+    Changing login color to red
+
+[33mcommit 0afcb4ed559f5a59844afab525254b1c84c8052b[m
+Merge: 46568a4 196ff13
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Thu Nov 20 20:44:11 2025 +0200
+
+    Merge pull request #1 from keroromanysamir/master
+    
+    Changing login color to red
+
+[33mcommit 196ff1346fb4f6937177723a6733c42d577fafcb[m
+Author: Kero <keroromany@gmail.com>
+Date:   Thu Nov 20 20:40:43 2025 +0200
+
+    Changing login color to red
+
+[33mcommit 1c43ecaf8859d06a268919f7b908f16f3119efc7[m
+Author: Kero <keroromany@gmail.com>
+Date:   Thu Nov 20 20:19:42 2025 +0200
+
+    Changing login color to pink
+
+[33mcommit 66076fba3e6badbe0169628942bc53e48ec7cc2e[m
+Author: Kero <keroromany@gmail.com>
+Date:   Thu Nov 20 19:58:06 2025 +0200
+
+    Changing login color to red
+
+[33mcommit 46568a4fcf7886cb8468ec8548fed219e2b5d2be[m
+Merge: cdc488d 67aca2e
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 21:43:16 2025 +0200
+
+    Merge pull request #7 from keroromanysamir/main
+    
+    changing login color from black to white
+
+[33mcommit 67aca2e1a8da9e10febee272a35ec525d9d3095d[m
+Merge: 2cb07c6 9e59e99
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 21:42:32 2025 +0200
+
+    Merge pull request #2 from keroromanysamir/master
+    
+    changing login color from black to white
+
+[33mcommit 9e59e9902d0fa617028b4f8155798cc3f2a44ef4[m
+Author: kero <keroromany@gmail.com>
+Date:   Wed Nov 19 21:39:20 2025 +0200
+
+    changing login color from black to white
+
+[33mcommit cdc488db1ae6a44b43e3e2c0e9b1e4ccc57f46dd[m
+Merge: b84cdf3 2cb07c6
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 21:20:48 2025 +0200
+
+    Merge pull request #6 from keroromanysamir/main
+    
+    changing login color to blue
+
+[33mcommit 2cb07c67954e4d16a90e53b36d72160a1ecaf30a[m
+Merge: b84cdf3 516f71c
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 21:19:45 2025 +0200
+
+    Merge pull request #1 from keroromanysamir/master
+    
+    Change login color to blue
+
+[33mcommit 516f71c95a445032a18f1b84bec66731f51da7b8[m
+Merge: c273671 b84cdf3
+Author: kero <keroromany@gmail.com>
+Date:   Wed Nov 19 21:15:38 2025 +0200
+
+    Merge remote-tracking branch 'origin/main'
+
+[33mcommit c273671e8ab4d3cc1a9c46284f04adfdb6f946c6[m
+Author: kero <keroromany@gmail.com>
+Date:   Wed Nov 19 20:47:11 2025 +0200
+
+    adding main.dart file
+
+[33mcommit b84cdf3d105ae6be684f8160e3b02b5981571c04[m
+Merge: 39b7363 6a371ae
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 01:54:10 2025 +0200
+
+    Merge pull request #5 from keroromanysamir/main
+    
+    changing to yellow
+
+[33mcommit 6a371ae12a80f67370cdf0a897e64036fcee17bf[m
+Merge: 39b7363 5834947
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 01:52:14 2025 +0200
+
+    Merge pull request #1 from keroromanysamir/master
+    
+    Master
+
+[33mcommit 58349479e4fb19f52737e2f994a90e9d9a20413e[m
+Author: Kero <Kerlosromany7@gmail.com>
+Date:   Wed Nov 19 01:05:05 2025 +0200
+
+    Changing login color to black
+
+[33mcommit 19145aa3ecb40e6d730ac48638be2642d7a8f2b5[m
+Merge: 72540f3 39b7363
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Wed Nov 19 00:53:15 2025 +0200
+
+    Merge branch 'master' into master
+
+[33mcommit 72540f33c8f9701249987d6a053ba4d1f645cd42[m
+Author: Kero <Kerlosromany7@gmail.com>
+Date:   Wed Nov 19 00:44:59 2025 +0200
+
+    Changing login color to pink
+
+[33mcommit 39b73630a356184835ed356ee1713ecc2a2a7d4d[m
+Merge: 8aa60fb 0346959
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Tue Nov 18 21:19:36 2025 +0200
+
+    Merge pull request #3 from YahyaAyman2/keroromanysamir-patch-1
+    
+    change login color to white
+
+[33mcommit 0346959811acd7f8ea78873fd684810c04a7c8ad[m
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Tue Nov 18 21:18:27 2025 +0200
+
+    change login color to white
+    
+    i changed login color to white
+
+[33mcommit 8aa60fb4cdd64fb2a96652a467c74e78d929b822[m
+Merge: e3f2f89 ee4abcd
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Tue Nov 18 19:28:52 2025 +0200
+
+    changing login color to blue
+    
+    changing login color to blue
+
+[33mcommit ee4abcd1facd2717026e52fb23c0b18244a7c080[m
+Merge: 87d98ed 3a6178f
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Tue Nov 18 19:27:41 2025 +0200
+
+    Merge pull request #1 from keroromanysamir/master
+    
+    changing login color to blue
+
+[33mcommit e3f2f892a2a194b81dfa0b94bd4c49e9e669239b[m
+Merge: 87d98ed 3a6178f
+Author: Kerlos Romany <145065685+keroromanysamir@users.noreply.github.com>
+Date:   Tue Nov 18 19:21:30 2025 +0200
+
+    Merge pull request #1 from keroromanysamir/master
+    
+    changing login color to blue
+
+[33mcommit 3a6178f5111948fcef5bf68175a725764e34902e[m
+Author: Kero <Kerlosromany7@gmail.com>
+Date:   Tue Nov 18 19:15:21 2025 +0200
+
+    changing login color to blue
+
+[33mcommit 87d98ede9c2accf73242f0676ec5305476195a0d[m
+Author: yahya <yayagaming239@gmail.com>
+Date:   Mon Nov 17 23:40:46 2025 +0200
+
+    first commit
