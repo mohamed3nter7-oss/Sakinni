@@ -1,17 +1,8 @@
 const mongoose = require("mongoose");
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect("mongodb://localhost:27017/Sakinni", {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-
-    console.log("MongoDB Connected to Sakinni");
-  } catch (error) {
-    console.error("MongoDB connection error:", error.message);
-    process.exit(1);
-  }
-};
+async function connectDB() {
+  await mongoose.connect("mongodb+srv://kokooromany_db_user:29XTMDTau6EukOp7@sakinnidb.jmoubu2.mongodb.net/");
+  console.log("MongoDB connected");
+}
 
 module.exports = connectDB;
