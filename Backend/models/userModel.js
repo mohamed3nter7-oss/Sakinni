@@ -1,4 +1,3 @@
-const { max } = require("lodash");
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
@@ -18,6 +17,7 @@ const userSchema = new mongoose.Schema({
 
   phoneNumber: {
     type: String,
+    minlength: 11,
     maxlength: 11,
   },
 
