@@ -39,11 +39,13 @@ run().catch(console.dir);
 //Database Name
 const dbName = "sakinni";
 let usersCollection;
+let bookingsCollection;
 async function connectDB() {
   await client.connect();
   console.log("Connected successfully to server");
   const db = client.db(dbName);
   usersCollection = db.collection("users");
+  bookingsCollection = db.collection("bookings");
 }
 
 module.exports = app;
