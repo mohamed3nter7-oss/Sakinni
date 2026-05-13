@@ -10,7 +10,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // connection url
-const uri = "mongodb+srv://kokooromany_db_user:<29XTMDTau6EukOp7>@sakinnidb.jmoubu2.mongodb.net/";
+const uri = "mongodb+srv://kokooromany_db_user:29XTMDTau6EukOp7@sakinnidb.jmoubu2.mongodb.net/?appName=SakinniDB";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
