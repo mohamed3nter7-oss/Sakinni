@@ -3,8 +3,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:sakkeny_app/pages/Startup%20pages/Forget_Pass.dart';
 import 'package:sakkeny_app/pages/Startup%20pages/sign_up.dart';
 import 'package:sakkeny_app/pages/bottom_nav.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:sakkeny_app/services/api_service.dart';
+import 'package:dio/dio.dart';
 class SignIn extends StatefulWidget {
   const SignIn({super.key});
 
@@ -220,7 +220,7 @@ class _SignInState extends State<SignIn> {
                       ),
                       const SizedBox(height: 15),
 
-                      // Log In button - WITH FIREBASE AUTH
+                      // Log In button
                       SizedBox(
                         width: double.infinity,
                         height: 55,
@@ -332,7 +332,7 @@ class _SignInState extends State<SignIn> {
     );
   }
 
-  // HANDLE FIREBASE LOGIN
+  // HANDLE API LOGIN
   Future<void> _handleLogin() async {
     if (!formState.currentState!.validate()) return;
 
@@ -341,43 +341,52 @@ class _SignInState extends State<SignIn> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+      final response = await ApiService().dio.post(
+        '/auth/login',
+        data: {
+          'email': emailController.text.trim(),
+          'password': passwordController.text.trim(),
+        },
       );
+      
+      if (response.data['success'] == true) {
+        final accessToken = response.data['data']['accessToken'];
+        final user = response.data['data']['user'];
+        await ApiService().saveAuthData(accessToken, user);
+        
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login Success'),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-      // Show success snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login Success'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // SUCCESS — navigate
-      // ignore: use_build_context_synchronously
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Navigation()),
-      );
-    }
-
-    on FirebaseAuthException catch (e) {
+        // ignore: use_build_context_synchronously
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Navigation()),
+        );
+      }
+    } on DioException catch (e) {
       String message = 'An error occurred';
-
-      if (e.code == 'user-not-found') message = 'No user found';
-      else if (e.code == 'wrong-password') message = 'Wrong password';
-      else if (e.code == 'invalid-email') message = 'Invalid email';
-
+      if (e.response?.data != null && e.response?.data['message'] != null) {
+        message = e.response?.data['message'];
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
-    }
-
-    finally {
-      setState(() {
-        _isLoading = false;
-      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 }

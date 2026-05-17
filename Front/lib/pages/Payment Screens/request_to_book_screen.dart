@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sakkeny_app/models/cards.dart';
 import 'package:sakkeny_app/services/payment_service.dart';
 import 'package:sakkeny_app/services/property_service.dart';
+import 'package:sakkeny_app/services/api_service.dart';
 import 'booking_status_screen.dart';
 
 class RequestToBookScreen extends StatefulWidget {
@@ -121,73 +120,28 @@ class _RequestToBookScreenState extends State<RequestToBookScreen> {
     return true;
   }
 
-  // ✅ Create booking in Firestore
+  // ✅ Create booking via API
   Future<bool> _createBooking() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
-      print('DEBUG: Creating booking for property ${widget.property.propertyId} by user ${user.uid}');
-
       // First, book the property (update status to rented)
       DateTime endDate = widget.moveInDate.add(Duration(days: widget.rentalMonths * 30)); // Approximate
-      bool booked = await _propertyService.bookProperty(
-        widget.property.propertyId,
-        startDate: widget.moveInDate,
-        endDate: endDate,
-      );
 
-      if (!booked) {
-        throw Exception('Failed to book property - it may no longer be available');
-      }
+      print('DEBUG: Property validation passed, creating booking via API');
 
-      print('DEBUG: Property validation passed, creating booking document');
-
-      // Create booking document
-      final bookingRef = await FirebaseFirestore.instance.collection('bookings').add({
-        // Property info
-        'propertyId': widget.property.propertyId,
-        'propertyTitle': widget.property.title,
-        'propertyImage': widget.property.mainImage,
-        'propertyLocation': widget.property.location.fullAddress,
-        'ownerId': widget.property.userId,
-        'ownerName': widget.property.userName,
-        
-        // User info
-        'userId': user.uid,
-        'userEmail': user.email,
-        
-        // Rental details
-        'moveInDate': Timestamp.fromDate(widget.moveInDate),
-        'rentalMonths': widget.rentalMonths,
-        'adults': widget.adults,
-        'children': widget.children,
-        
-        // Pricing
-        'monthlyRent': baseMonthlyRent,
-        'basePrice': basePrice,
-        'cleaningFee': cleaningFee,
-        'cleaningFeePercent': cleaningFeePercent,
-        'serviceFee': serviceFee,
-        'serviceFeePercent': serviceFeePercent,
-        'totalPrice': widget.totalPrice,
-        
-        // Payment info (last 4 digits only)
-        'cardLastFour': maskedCardNumber,
-        'cardHolder': widget.cardHolder,
-        
-        // Status
-        'status': 'confirmed', // Changed from pending to confirmed since we booked it
-        'paymentStatus': 'paid', // Assuming payment succeeded
-        
-        // Timestamps
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      final response = await ApiService().dio.post('/bookings', data: {
+        'property': widget.property.propertyId,
+        'startDate': widget.moveInDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
       });
 
-      print('DEBUG: Booking document created with ID: ${bookingRef.id}');
+      if (response.data['success'] != true) {
+        throw Exception('Failed to create booking');
+      }
+
+      final bookingId = response.data['data']['_id'];
+      print('DEBUG: Booking document created with ID: $bookingId');
+
+
 
       // Create payment record
       final paymentDetails = {
@@ -202,7 +156,7 @@ class _RequestToBookScreenState extends State<RequestToBookScreen> {
 
       await _paymentService.createPayment(
         propertyId: widget.property.propertyId,
-        bookingId: bookingRef.id,
+        bookingId: bookingId,
         amount: widget.totalPrice,
         currency: 'EGP',
         paymentMethod: 'card',
@@ -268,7 +222,7 @@ class _RequestToBookScreenState extends State<RequestToBookScreen> {
         return;
       }
 
-      // Create booking in Firestore
+      // Create booking
       final bookingCreated = await _createBooking();
 
       setState(() => _isProcessing = false);

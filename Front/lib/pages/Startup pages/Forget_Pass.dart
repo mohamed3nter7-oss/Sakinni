@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sakkeny_app/services/api_service.dart';
+import 'package:dio/dio.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -14,7 +15,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   bool isLoading = false;
 
-  // 🔐 Send password reset email using Firebase
+  // 🔐 Send password reset email using Backend API
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -23,8 +24,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
+      // NOTE: Backend does not have a forgot password endpoint currently.
+      // This will attempt to call a generic endpoint.
+      await ApiService().dio.post(
+        '/auth/forgot-password',
+        data: {'email': _emailController.text.trim()},
       );
 
       setState(() {
@@ -42,22 +46,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       // Go back to Sign In screen
       Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
+    } on DioException catch (e) {
       setState(() {
         isLoading = false;
       });
 
-      String message = "Something went wrong";
-
-      if (e.code == 'user-not-found') {
-        message = "No account found with this email";
-      } else if (e.code == 'invalid-email') {
-        message = "Invalid email address";
+      String message = "Feature not available on backend or something went wrong";
+      if (e.response?.data != null && e.response?.data['message'] != null) {
+        message = e.response?.data['message'];
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
           backgroundColor: Colors.red,
         ),
       );

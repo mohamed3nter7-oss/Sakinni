@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'add_card_details_screen.dart';
 
 class PaymentMethodsScreenn extends StatefulWidget {
@@ -11,19 +11,30 @@ class PaymentMethodsScreenn extends StatefulWidget {
 }
 
 class _PaymentMethodsScreennState extends State<PaymentMethodsScreenn> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<Map<String, dynamic>> _savedCards = [];
+  bool _isLoading = true;
 
-  Stream<QuerySnapshot> _getSavedCards() {
-    final user = _auth.currentUser;
-    if (user == null) return Stream.empty();
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCards();
+  }
 
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('payment')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+  Future<void> _loadSavedCards() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? cardsJson = prefs.getString('saved_cards');
+    
+    if (cardsJson != null) {
+      final List<dynamic> decoded = jsonDecode(cardsJson);
+      setState(() {
+        _savedCards = decoded.map((e) => e as Map<String, dynamic>).toList();
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _showPaymentMethodBottomSheet() {
@@ -41,8 +52,7 @@ class _PaymentMethodsScreennState extends State<PaymentMethodsScreenn> {
             MaterialPageRoute(
               builder: (context) => AddCardDetailsScreenn(
                 onCardAdded: (cardNumber) {
-                  // Card is now saved to Firebase in the AddCardDetailsScreenn
-                  // No need to update local state as we use StreamBuilder
+                  _loadSavedCards();
                 },
               ),
             ),
@@ -70,15 +80,11 @@ class _PaymentMethodsScreennState extends State<PaymentMethodsScreenn> {
           TextButton(
             onPressed: () async {
               try {
-                final user = _auth.currentUser;
-                if (user != null) {
-                  await _firestore
-                      .collection('users')
-                      .doc(user.uid)
-                      .collection('payment')
-                      .doc(cardId)
-                      .delete();
-                }
+                final prefs = await SharedPreferences.getInstance();
+                _savedCards.removeWhere((card) => card['id'] == cardId);
+                await prefs.setString('saved_cards', jsonEncode(_savedCards));
+                
+                setState(() {});
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -165,91 +171,74 @@ class _PaymentMethodsScreennState extends State<PaymentMethodsScreenn> {
             const SizedBox(height: 32),
 
             // Saved Cards
-            StreamBuilder<QuerySnapshot>(
-              stream: _getSavedCards(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Text('Error loading payment methods');
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final cards = snapshot.data?.docs ?? [];
-
-                if (cards.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Saved payment methods',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_savedCards.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Saved payment methods',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
                     ),
-                    const SizedBox(height: 16),
-                    ...cards.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.credit_card, size: 24),
+                  ),
+                  const SizedBox(height: 16),
+                  ..._savedCards.map((data) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['cardType'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            child: const Icon(Icons.credit_card, size: 24),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['cardType'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '•••• ${data['cardNumber'] ?? '****'}',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade600,
-                                    ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '•••• ${data['cardNumber'] ?? '****'}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => _deleteCard(doc.id),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            onPressed: () => _deleteCard(data['id'] ?? ''),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 24),
+                ],
+              ),
 
             // Information Card
             Container(

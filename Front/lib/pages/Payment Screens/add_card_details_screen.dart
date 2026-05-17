@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sakkeny_app/models/cards.dart';
 import 'request_to_book_screen.dart';
 
@@ -678,17 +678,17 @@ class _AddCardDetailsScreenState extends State<AddCardDetailsScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
       // ✅ Save card details if checkbox is checked
       if (_saveCard) {
-        await FirebaseFirestore.instance
-            .collection('payment')
-            .add({
-          'userId': user.uid,
+        final prefs = await SharedPreferences.getInstance();
+        final String? cardsJson = prefs.getString('saved_cards');
+        List<dynamic> savedCards = [];
+        if (cardsJson != null) {
+          savedCards = jsonDecode(cardsJson);
+        }
+        
+        final cardData = {
+          'id': DateTime.now().millisecondsSinceEpoch.toString(),
           'cardNumber': _cardNumberController.text.replaceAll(' ', '').substring(12), // Last 4 digits
           'cardType': _detectCardType(_cardNumberController.text),
           'cardHolder': _cardHolderController.text,
@@ -696,8 +696,11 @@ class _AddCardDetailsScreenState extends State<AddCardDetailsScreen> {
           'country': _selectedCountry,
           'postcode': _postcodeController.text,
           'isDefault': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+          'createdAt': DateTime.now().toIso8601String(),
+        };
+        
+        savedCards.add(cardData);
+        await prefs.setString('saved_cards', jsonEncode(savedCards));
       }
 
       if (mounted) {

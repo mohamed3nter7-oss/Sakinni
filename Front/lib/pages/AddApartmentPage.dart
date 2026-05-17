@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sakkeny_app/services/property_service.dart';
 import 'package:sakkeny_app/models/cards.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 class AddApartmentPage extends StatefulWidget {
   final PropertyModel? property;
@@ -18,7 +16,6 @@ class AddApartmentPage extends StatefulWidget {
 
 class _AddApartmentPageState extends State<AddApartmentPage> {
   final PropertyService _propertyService = PropertyService();
-  final SupabaseClient supabase = Supabase.instance.client;
 
   bool get isEdit => widget.property != null;
 
@@ -103,32 +100,27 @@ class _AddApartmentPageState extends State<AddApartmentPage> {
     });
   }
 
-  /* ---------------- Upload Images to Supabase ---------------- */
-  Future<List<String>> uploadImagesToSupabase() async {
+  /* ---------------- Upload Images to Backend (Mock) ---------------- */
+  Future<List<String>> uploadImagesToBackend() async {
+    // NOTE: Backend does not have an image upload endpoint currently.
+    // We will simulate it by returning placeholder URLs.
     List<String> imageUrls = [];
-    final uuid = const Uuid();
-
-    for (final image in selectedImages) {
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${uuid.v4()}.jpg';
-
-      Uint8List bytes = await image.readAsBytes();
-
-      await supabase.storage
-          .from('apartment-images')
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
-
-      final publicUrl = supabase.storage
-          .from('apartment-images')
-          .getPublicUrl(fileName);
-
-      imageUrls.add(publicUrl);
+    
+    if (selectedImages.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Backend lacks image upload. Using placeholders.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
 
+    for (int i = 0; i < selectedImages.length; i++) {
+      imageUrls.add('https://via.placeholder.com/500?text=Apartment+Image+\${DateTime.now().millisecondsSinceEpoch}');
+    }
+    
+    // Simulate network delay
+    await Future.delayed(const Duration(seconds: 1));
     return imageUrls;
   }
 
@@ -171,7 +163,7 @@ class _AddApartmentPageState extends State<AddApartmentPage> {
       List<String> finalImages = List<String>.from(existingImageUrls);
 
       if (selectedImages.isNotEmpty) {
-        final uploaded = await uploadImagesToSupabase();
+        final uploaded = await uploadImagesToBackend();
         finalImages.addAll(uploaded);
       }
 

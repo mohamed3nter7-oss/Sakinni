@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sakkeny_app/services/api_service.dart';
 import 'package:sakkeny_app/models/cards.dart';
 import 'package:sakkeny_app/pages/AddApartmentPage.dart';
 import 'package:sakkeny_app/pages/property.dart';
@@ -15,7 +14,6 @@ class MyListingsPage extends StatefulWidget {
 
 class _MyListingsPageState extends State<MyListingsPage> {
   final PropertyService _propertyService = PropertyService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _fullName = "User";
   String? _imageUrl;
@@ -30,28 +28,25 @@ class _MyListingsPageState extends State<MyListingsPage> {
   /* ================= LOAD USER DATA ================= */
 
   Future<void> _loadUserData() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data();
+      final response = await ApiService().dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        final data = response.data['data']['user'];
         setState(() {
-          _fullName = data?['first name'] ?? "User";
-          _imageUrl = data?['profile_image'] ?? user.photoURL;
+          _fullName = data['firstName'] ?? "User";
+          _imageUrl = data['profileImage'];
           _loadingUser = false;
         });
       } else {
-        _loadingUser = false;
+        setState(() {
+          _loadingUser = false;
+        });
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
-      _loadingUser = false;
+      setState(() {
+        _loadingUser = false;
+      });
     }
   }
 

@@ -59,11 +59,11 @@ class PropertyModel {
 
   });
 
-  // ✅ Convert from Firestore
-  factory PropertyModel.fromFirestore(Map<String, dynamic> data) {
+  // ✅ Convert from JSON
+  factory PropertyModel.fromJson(Map<String, dynamic> data) {
     return PropertyModel(
-      propertyId: data['propertyId'] ?? '',
-      userId: data['userId'] ?? '',
+      propertyId: data['_id'] ?? data['id'] ?? data['propertyId'] ?? '',
+      userId: data['user']?['_id'] ?? data['userId'] ?? '',
       userName: data['userName'] ?? 'Unknown',
       userImage: data['userImage'],
       title: data['title'] ?? '',
@@ -88,8 +88,8 @@ class PropertyModel {
     );
   }
 
-  // ✅ Convert to Firestore
-  Map<String, dynamic> toFirestore() {
+  // ✅ Convert to JSON
+  Map<String, dynamic> toJson() {
     return {
       'propertyId': propertyId,
       

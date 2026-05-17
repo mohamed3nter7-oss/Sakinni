@@ -1,10 +1,14 @@
-const app = require("./app.js");
-const connectDB = require("./config/db.js");
-const userRoutes = require("./routes/userRoutes.js");
+require('dotenv').config();
+const dotenv = require("dotenv");
+dotenv.config();
 
-app.use("/api/users", userRoutes);
+const app = require("./app");
+const connectDB = require("./config/db");
+
 connectDB();
 
-app.listen(2000, () => {
-  console.log("Server is running on port 2000");
+const PORT =  5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

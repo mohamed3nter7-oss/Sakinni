@@ -4,8 +4,8 @@ import 'package:sakkeny_app/pages/Payment%20Screens/review_and_continue_screen.d
 import 'package:sakkeny_app/models/cards.dart';
 import 'package:sakkeny_app/services/property_service.dart';
 import 'package:sakkeny_app/pages/Booked_Apartments.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sakkeny_app/pages/Startup%20pages/sign_in.dart';
+import 'package:sakkeny_app/services/api_service.dart';
 import 'dart:async';
 
 class PropertyDetailsPage extends StatefulWidget {
@@ -24,8 +24,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> with WidgetsB
   bool _isBookedByCurrentUser = false;
   bool _isBookedBySomeoneElse = false;
   final PropertyService _propertyService = PropertyService();
-  StreamSubscription<User?>? _authStateSubscription;
-  User? _currentUser;
+  String? _currentUserId;
 
   // ✅ ALL POSSIBLE AMENITIES (must match AddApartmentPage)
   final List<String> allAmenities = [
@@ -42,27 +41,30 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> with WidgetsB
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     
-    // Set initial current user
-    _currentUser = FirebaseAuth.instance.currentUser;
-    
-    // Listen for auth state changes
-    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      print('DEBUG: Auth state changed, user: ${user?.uid}');
-      setState(() {
-        _currentUser = user;
-      });
-      // Refresh booking status when user changes
-      _checkBookingStatus();
-    });
+    _fetchCurrentUser();
     
     _checkIfSaved();
     _checkBookingStatus();
   }
 
+  Future<void> _fetchCurrentUser() async {
+    try {
+      final response = await ApiService().dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        if (mounted) {
+          setState(() {
+            _currentUserId = response.data['data']['user']['_id'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Failed to fetch current user');
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _authStateSubscription?.cancel();
     super.dispose();
   }
 
@@ -99,7 +101,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> with WidgetsB
     bool bookedByUser = await _propertyService.isPropertyBookedByUser(widget.property.propertyId);
     bool bookedByAnyone = await _propertyService.isPropertyBookedByAnyone(widget.property.propertyId);
     
-    print('DEBUG: Property ${widget.property.propertyId} - bookedByUser: $bookedByUser, bookedByAnyone: $bookedByAnyone, currentUser: ${_currentUser?.uid}');
+    print('DEBUG: Property ${widget.property.propertyId} - bookedByUser: $bookedByUser, bookedByAnyone: $bookedByAnyone, currentUser: $_currentUserId');
     
     if (mounted) {
       setState(() {
@@ -185,7 +187,7 @@ class _PropertyDetailsPageState extends State<PropertyDetailsPage> with WidgetsB
               isBookedByCurrentUser: _isBookedByCurrentUser,
               isBookedBySomeoneElse: _isBookedBySomeoneElse,
               isCheckingBooking: _isCheckingBooking,
-              currentUser: _currentUser,
+              currentUserId: _currentUserId,
             ),
           ],
         ),
@@ -669,14 +671,14 @@ class _BottomButtons extends StatelessWidget {
   final bool isBookedByCurrentUser;
   final bool isBookedBySomeoneElse;
   final bool isCheckingBooking;
-  final User? currentUser;
+  final String? currentUserId;
 
   const _BottomButtons({
     required this.property,
     required this.isBookedByCurrentUser,
     required this.isBookedBySomeoneElse,
     required this.isCheckingBooking,
-    required this.currentUser,
+    required this.currentUserId,
   });
 
   @override
@@ -741,7 +743,7 @@ Expanded(
               }
             : isBookedBySomeoneElse
                 ? null
-                : currentUser == null
+                : currentUserId == null
                     ? () {
                         // Navigate to sign in screen
                         Navigator.push(
@@ -786,7 +788,7 @@ Expanded(
                 ? 'My Booking'
                 : isBookedBySomeoneElse
                     ? 'Already Booked'
-                    : currentUser == null
+                    : currentUserId == null
                         ? 'Sign In to Book'
                         : 'Book Now',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),

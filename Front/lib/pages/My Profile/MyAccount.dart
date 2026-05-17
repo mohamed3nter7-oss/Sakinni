@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sakkeny_app/services/api_service.dart';
 
 class MyAccountPage extends StatefulWidget {
   const MyAccountPage({Key? key}) : super(key: key);
@@ -16,8 +15,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
   String phoneNumber = '';
   bool isLoading = true;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -27,22 +25,16 @@ class _MyAccountPageState extends State<MyAccountPage> {
 
   Future<void> _loadUserData() async {
     try {
-      User? user = _auth.currentUser;
-      if (user != null) {
-        DocumentSnapshot userData = await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .get();
-
-        if (userData.exists) {
-          setState(() {
-            firstName = userData['first name'] ?? '';
-            lastName = userData['last name'] ?? '';
-            email = userData['email'] ?? '';
-            phoneNumber = userData['phone number'] ?? '';
-            isLoading = false;
-          });
-        }
+      final response = await _apiService.dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        final userData = response.data['data']['user'];
+        setState(() {
+          firstName = userData['firstName'] ?? '';
+          lastName = userData['lastName'] ?? '';
+          email = userData['email'] ?? '';
+          phoneNumber = userData['phoneNumber'] ?? '';
+          isLoading = false;
+        });
       }
     } catch (e) {
       print('Error loading user data: $e');
@@ -52,14 +44,11 @@ class _MyAccountPageState extends State<MyAccountPage> {
 
   Future<void> _updateUserData(String field, String value) async {
     try {
-      User? user = _auth.currentUser;
-      if (user != null) {
-        // Update Firestore
-        await _firestore.collection('users').doc(user.uid).update({
-          field: value,
-          'updatedAt': Timestamp.now(),
-        });
+      final response = await _apiService.dio.patch('/users/me', data: { // Assuming a me route or just use the user ID. We can use /users/:id. Let's get the id first or assume backend handles /users/me, or /auth/me for updates.
+        field: value,
+      });
 
+      if (response.data['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Updated successfully')),
         );
@@ -71,7 +60,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
     }
   }
 
-  void _editField(String fieldName, String currentValue, String firestoreField) {
+  void _editField(String fieldName, String currentValue, String backendField) {
     final TextEditingController controller = TextEditingController(text: currentValue);
     showDialog<void>(
       context: context,
@@ -98,12 +87,12 @@ class _MyAccountPageState extends State<MyAccountPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _updateUserData(firestoreField, controller.text);
+              await _updateUserData(backendField, controller.text);
               setState(() {
-                if (firestoreField == 'first name') firstName = controller.text;
-                if (firestoreField == 'last name') lastName = controller.text;
-                if (firestoreField == 'email') email = controller.text;
-                if (firestoreField == 'phone number') phoneNumber = controller.text;
+                if (backendField == 'firstName') firstName = controller.text;
+                if (backendField == 'lastName') lastName = controller.text;
+                if (backendField == 'email') email = controller.text;
+                if (backendField == 'phoneNumber') phoneNumber = controller.text;
               });
               Navigator.pop(context);
             },
@@ -183,14 +172,14 @@ class _MyAccountPageState extends State<MyAccountPage> {
                       icon: Icons.person_outline,
                       title: 'First Name',
                       value: firstName,
-                      onTap: () => _editField('First Name', firstName, 'first name'),
+                      onTap: () => _editField('First Name', firstName, 'firstName'),
                     ),
                     const SizedBox(height: 15),
                     _buildAccountItem(
                       icon: Icons.person_outline,
                       title: 'Last Name',
                       value: lastName,
-                      onTap: () => _editField('Last Name', lastName, 'last name'),
+                      onTap: () => _editField('Last Name', lastName, 'lastName'),
                     ),
                     const SizedBox(height: 15),
                     _buildAccountItem(
@@ -204,7 +193,7 @@ class _MyAccountPageState extends State<MyAccountPage> {
                       icon: Icons.phone_outlined,
                       title: 'Phone Number',
                       value: phoneNumber,
-                      onTap: () => _editField('Phone Number', phoneNumber, 'phone number'),
+                      onTap: () => _editField('Phone Number', phoneNumber, 'phoneNumber'),
                     ),
                     const SizedBox(height: 15),
                     _buildPasswordItem(),
@@ -376,8 +365,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   String? _newPasswordError;
   String? _confirmNewPasswordError;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
   Future<void> _validateAndChangePassword() async {
     setState(() {
       _currentPasswordError = null;
@@ -387,7 +374,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     bool isValid = true;
 
-    // Validate current password (Firebase will check this)
+    // Validate current password
     if (_currentPasswordController.text.isEmpty) {
       setState(() => _currentPasswordError = 'Current password cannot be empty');
       isValid = false;
@@ -413,37 +400,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
     if (isValid) {
       try {
-        User? user = _auth.currentUser;
-        if (user != null && user.email != null) {
-          // Re-authenticate user with current password
-          AuthCredential credential = EmailAuthProvider.credential(
-            email: user.email!,
-            password: _currentPasswordController.text,
-          );
+        final response = await ApiService().dio.patch('/auth/change-password', data: {
+          'currentPassword': _currentPasswordController.text,
+          'newPassword': _newPasswordController.text,
+        });
 
-          await user.reauthenticateWithCredential(credential);
-
-          // Update password
-          await user.updatePassword(_newPasswordController.text);
-
+        if (response.data['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Password changed successfully')),
           );
-
           Navigator.pop(context);
         }
-      } on FirebaseAuthException catch (e) {
-        String message = 'Error changing password';
-        
-        if (e.code == 'wrong-password') {
-          setState(() => _currentPasswordError = 'Incorrect current password');
-        } else if (e.code == 'weak-password') {
-          setState(() => _newPasswordError = 'Password is too weak');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
-        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error changing password')),
+        );
       }
     }
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddCardDetailsScreenn extends StatefulWidget {
   final Function(String)? onCardAdded;
@@ -92,20 +92,19 @@ class _AddCardDetailsScreennState extends State<AddCardDetailsScreenn> {
     setState(() => _isProcessing = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
+      // Save to local SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final String? cardsJson = prefs.getString('saved_cards');
+      List<dynamic> savedCards = [];
+      if (cardsJson != null) {
+        savedCards = jsonDecode(cardsJson);
       }
-
+      
       String cardNumber = _cardNumberController.text.replaceAll(' ', '');
       String cardType = _detectCardType(cardNumber);
-
-      // Save to users/{uid}/payment collection (matches your existing structure)
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('payment')
-          .add({
+      
+      final cardData = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'cardNumber': cardNumber.substring(cardNumber.length - 4), // Last 4 digits
         'cardType': cardType,
         'cardHolder': _cardHolderController.text,
@@ -114,8 +113,11 @@ class _AddCardDetailsScreennState extends State<AddCardDetailsScreenn> {
         'postcode': _postcodeController.text,
         'country': _selectedCountry,
         'isDefault': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+      
+      savedCards.add(cardData);
+      await prefs.setString('saved_cards', jsonEncode(savedCards));
 
       if (widget.onCardAdded != null) {
         widget.onCardAdded!(cardNumber);

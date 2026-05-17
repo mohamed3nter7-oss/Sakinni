@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class PaymentModel {
   final String paymentId;
@@ -27,23 +27,23 @@ class PaymentModel {
     this.processedAt,
   });
 
-  factory PaymentModel.fromFirestore(Map<String, dynamic> data, String id) {
+  factory PaymentModel.fromJson(Map<String, dynamic> data, String id) {
     return PaymentModel(
-      paymentId: id,
-      userId: data['userId'] ?? '',
-      propertyId: data['propertyId'] ?? '',
-      bookingId: data['bookingId'] ?? '',
+      paymentId: data['_id'] ?? id,
+      userId: data['user']?['_id'] ?? data['userId'] ?? '',
+      propertyId: data['property']?['_id'] ?? data['propertyId'] ?? '',
+      bookingId: data['booking']?['_id'] ?? data['bookingId'] ?? '',
       amount: (data['amount'] ?? 0.0).toDouble(),
       currency: data['currency'] ?? 'EGP',
       status: data['status'] ?? 'pending',
       paymentMethod: data['paymentMethod'] ?? 'card',
       paymentDetails: data['paymentDetails'] ?? {},
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      processedAt: (data['processedAt'] as Timestamp?)?.toDate(),
+      createdAt: data['createdAt'] != null ? DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now() : DateTime.now(),
+      processedAt: data['processedAt'] != null ? DateTime.tryParse(data['processedAt'].toString()) : null,
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  Map<String, dynamic> toJson() {
     return {
       'userId': userId,
       'propertyId': propertyId,
@@ -53,8 +53,8 @@ class PaymentModel {
       'status': status,
       'paymentMethod': paymentMethod,
       'paymentDetails': paymentDetails,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'processedAt': processedAt != null ? Timestamp.fromDate(processedAt!) : null,
+      'createdAt': createdAt.toIso8601String(),
+      'processedAt': processedAt?.toIso8601String(),
     };
   }
 }

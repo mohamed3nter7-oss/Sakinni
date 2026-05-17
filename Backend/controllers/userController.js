@@ -1,60 +1,128 @@
-const app = require("../app");
-const User = require("../models/userModel");
-// get all users
+// controllers/userController.js
+
+const User = require("../models/userModel"); 
+
+// ─── Get All Users (Admin only) ───────────────────────────────────────────────
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({});
-    res.status(200).json(users);
+    const users = await User.find({ isActive: true }); 
+    return res.status(200).json({
+      success: true,
+      data: users,
+      message: "Users fetched successfully",
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      success: false,
+      data: null,
+      message: error.message,
+    });
   }
 };
 
-// get user by id
+// ─── Get User By ID ───────────────────────────────────────────────────────────
 const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!user || !user.isActive) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: "User not found",
+      });
     }
-    res.status(200).json(user);
+    return res.status(200).json({
+      success: true,
+      data: user,
+      message: "User fetched successfully",
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      success: false,
+      data: null,
+      message: error.message,
+    });
   }
 };
 
-// Create a new user
-const createUser = async (req, res) => {
+// ─── Update User ──────────────────────────────────────────────────────────────
+const updateUser = async (req, res) => {
   try {
-    const user = await User.create(req.body);
-    res.status(201).json(user);
+    // ✅ Blacklist fields that must never be updated via this endpoint
+    const { password, userRole, refreshToken, loginAttempts, ...safeFields } =
+      req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      safeFields,
+      { new: true, runValidators: true } // ✅ run schema validators on update
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: user,
+      message: "User updated successfully",
+    });
   } catch (error) {
-    if (error.code === 11000) {
-    return res.status(400).json({
-      message: "Email already exists"
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((e) => e.message);
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: messages.join(", "),
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      data: null,
+      message: error.message,
     });
   }
+};
 
-  res.status(500).json({
-    message: error.message
-  });
-}};
-
-// Delete a user
+// ─── Soft Delete User ─────────────────────────────────────────────────────────
 const deleteUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    // ✅ Soft delete — sets isActive to false instead of removing the document
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
+
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: "User not found",
+      });
     }
-    res.status(200).json({ message: "User deleted successfully" });
+
+    return res.status(200).json({
+      success: true,
+      data: null,
+      message: "User deleted successfully",
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      success: false,
+      data: null,
+      message: error.message,
+    });
   }
 };
 
 module.exports = {
-     getAllUsers,
-     getUserById,
-      createUser,
-       deleteUser };
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+};

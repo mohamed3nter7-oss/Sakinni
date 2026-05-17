@@ -1,52 +1,64 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
-const mongoose = require("mongoose");
+require("dotenv").config();
+
 const express = require("express");
-const morgan = require("morgan");
-
+const mongoose = require("mongoose");
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
+// ─── Route imports ────────────────────────────────────────────────────────────
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const chatRoutes = require("./routes/chatRouter");
+const bookingRouter = require("./routes/bookingRouter");
+const paymentRouter = require("./routes/paymentRouter");
+const propertyRouter = require("./routes/propertyRouter");
 const app = express();
-app.use(morgan("dev"));
 
-app.use(express.json());
+// ─── Global Middleware ────────────────────────────────────────────────────────
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+      // Allow any localhost port (Flutter web dev uses random ports)
+      if (/^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true, // Required to allow cookies cross-origin
+  })
+);
+app.use(express.json({ limit: "10kb" })); // Reject oversized JSON bodies
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // Parses req.cookies for refresh token
 
-// connection url
-const uri =
-  "mongodb+srv://kokooromany_db_user:29XTMDTau6EukOp7@sakinnidb.jmoubu2.mongodb.net/?appName=SakinniDB";
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/bookings", bookingRouter);
+app.use("/api/payments", paymentRouter);
+app.use("/api/properties", propertyRouter);
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
+// ─── 404 Handler ─────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    data: null,
+    message: `Route ${req.method} ${req.originalUrl} not found`,
+  });
 });
 
-async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-run().catch(console.dir);
+// ─── Global Error Handler ─────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error("[Unhandled Error]", err);
+  res.status(err.status || 500).json({
+    success: false,
+    data: null,
+    message: err.message || "Internal server error",
+  });
+});
 
-//Database Name
-const dbName = "sakinni";
-let usersCollection;
-let bookingsCollection;
-async function connectDB() {
-  await client.connect();
-  console.log("Connected successfully to server");
-  const db = client.db(dbName);
-  usersCollection = db.collection("users");
-  bookingsCollection = db.collection("bookings");
-}
 
-module.exports = app;
+module.exports = app; // export for testing

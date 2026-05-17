@@ -1,33 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint('Firebase initialization error: $e');
-  }
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: MessagesPage(),
-    );
-  }
-}
-
-// ==========================================
-// MESSAGES PAGE (List of Chats)
-// ==========================================
+import 'package:sakkeny_app/services/chat_service.dart';
+import 'package:sakkeny_app/services/api_service.dart';
+import 'package:sakkeny_app/services/property_service.dart';
 
 class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
@@ -37,12 +11,31 @@ class MessagesPage extends StatefulWidget {
 }
 
 class _MessagesPageState extends State<MessagesPage> {
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  final ChatService chatService = ChatService();
   final TextEditingController _searchController = TextEditingController();
-
-  String get currentUserId => auth.currentUser?.uid ?? "";
   String _searchQuery = "";
+  String currentUserId = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCurrentUserId();
+  }
+
+  Future<void> _fetchCurrentUserId() async {
+    try {
+      final response = await ApiService().dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        if (mounted) {
+          setState(() {
+            currentUserId = response.data['data']['user']['_id'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Failed to get current user info for messages');
+    }
+  }
 
   @override
   void dispose() {
@@ -104,19 +97,14 @@ class _MessagesPageState extends State<MessagesPage> {
     );
   }
 
-  // ✅ Build Active Chats List (Stream)
+  // Build Active Chats List (Stream)
   Widget _buildActiveChats() {
     if (currentUserId.isEmpty) {
       return const Center(child: Text("Please log in to view messages"));
     }
 
-    return StreamBuilder<QuerySnapshot>(
-      // Listen to chats where I am a participant
-      stream: firestore
-          .collection('chats')
-          .where('participants', arrayContains: currentUserId)
-          .orderBy('lastMessageTime', descending: true)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: chatService.getMyChats(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
@@ -125,7 +113,7 @@ class _MessagesPageState extends State<MessagesPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -139,25 +127,13 @@ class _MessagesPageState extends State<MessagesPage> {
         }
 
         return ListView.separated(
-          itemCount: snapshot.data!.docs.length,
+          itemCount: snapshot.data!.length,
           separatorBuilder: (context, index) => const Divider(),
           itemBuilder: (context, index) {
-            var doc = snapshot.data!.docs[index];
-            var data = doc.data() as Map<String, dynamic>;
-
-            // Identify the other user
-            List<dynamic> participants = data['participants'] ?? [];
-            String otherUserId = participants.firstWhere(
-              (id) => id != currentUserId,
-              orElse: () => "",
-            );
-
-            // Get name/image from stored map if available
-            Map<String, dynamic> names = data['participantNames'] ?? {};
-            String displayName = names[otherUserId] ?? "User"; // Fallback name
-
-            // Safe access to other fields
-            String lastMessage = data['lastMessage'] ?? "Photo";
+            var data = snapshot.data![index];
+            String otherUserId = data['otherUserId'] ?? "";
+            String displayName = data['otherUserName'] ?? "User";
+            String lastMessage = data['lastMessage'] ?? "";
 
             return ListTile(
               leading: CircleAvatar(
@@ -184,7 +160,7 @@ class _MessagesPageState extends State<MessagesPage> {
                     builder: (context) => ChatPage(
                       userId: otherUserId,
                       name: displayName,
-                      lastMessage: "", // Not sending a new init message
+                      lastMessage: "",
                     ),
                   ),
                 );
@@ -196,7 +172,7 @@ class _MessagesPageState extends State<MessagesPage> {
     );
   }
 
-  // ✅ Build Global Search Results (Owners)
+  // Build Global Search Results (Owners)
   Widget _buildSearchResults() {
     return FutureBuilder<List<Map<String, String>>>(
       future: _searchOwners(_searchQuery),
@@ -234,7 +210,7 @@ class _MessagesPageState extends State<MessagesPage> {
                     builder: (context) => ChatPage(
                       userId: owner['id']!,
                       name: owner['name']!,
-                      lastMessage: "Hello!", // Default greeting for new chat
+                      lastMessage: "Hello!",
                     ),
                   ),
                 );
@@ -246,32 +222,22 @@ class _MessagesPageState extends State<MessagesPage> {
     );
   }
 
-  // Search Logic: Find owners in 'properties' collection
+  // Search Logic: Find owners in properties
   Future<List<Map<String, String>>> _searchOwners(String query) async {
     if (query.isEmpty) return [];
 
     try {
-      // Note: Full text search is not natively supported by Firestore client-side easily.
-      // We will fetch properties where userName likely matches.
-
-      QuerySnapshot snapshot = await firestore
-          .collection('properties')
-          .where('userName', isGreaterThanOrEqualTo: query)
-          .where('userName', isLessThan: '$query\uf8ff')
-          .get();
+      final properties = await PropertyService().searchProperties(query);
 
       // Deduplicate owners
       Set<String> processedIds = {};
       List<Map<String, String>> results = [];
 
-      for (var doc in snapshot.docs) {
-        var data = doc.data() as Map<String, dynamic>;
-        String uid = data['userId'] ?? "";
-        String name = data['userName'] ?? "Unknown";
+      for (var p in properties) {
+        String uid = p.userId;
+        String name = p.userName;
 
-        if (uid.isNotEmpty &&
-            uid != currentUserId &&
-            !processedIds.contains(uid)) {
+        if (uid.isNotEmpty && uid != currentUserId && !processedIds.contains(uid)) {
           processedIds.add(uid);
           results.add({'id': uid, 'name': name});
         }
@@ -306,11 +272,11 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController messageController = TextEditingController();
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  final ChatService chatService = ChatService();
   final ScrollController _scrollController = ScrollController();
-
-  String get currentUserId => auth.currentUser?.uid ?? "";
+  String currentUserId = "";
+  String? chatId;
+  bool isInitializing = true;
 
   @override
   void initState() {
@@ -319,138 +285,54 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _initializeChat() async {
-    if (currentUserId.isEmpty) return;
-
     try {
-      String chatId = _getChatId();
-      DocumentReference chatRef = firestore.collection('chats').doc(chatId);
-      DocumentSnapshot chatDoc = await chatRef.get();
-
-      // 1. Get MY Name (Sender) logic - More Robust
-      String myName = "User";
-      try {
-        DocumentSnapshot myProfile = await firestore
-            .collection('users')
-            .doc(currentUserId)
-            .get();
-        if (myProfile.exists) {
-          final data = myProfile.data() as Map<String, dynamic>;
-          // Try multiple fields to find a valid name
-          if (data['first name'] != null &&
-              data['first name'].toString().isNotEmpty) {
-            myName = data['first name'];
-            if (data['last name'] != null) {
-              myName += " ${data['last name']}";
-            }
-          } else if (data['firstName'] != null) {
-            myName = data['firstName'];
-          } else if (data['name'] != null) {
-            myName = data['name'];
-          } else if (data['username'] != null) {
-            myName = data['username'];
-          }
-        }
-      } catch (e) {
-        debugPrint("Could not fetch my profile: $e");
+      final response = await ApiService().dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        currentUserId = response.data['data']['user']['_id'];
       }
 
-      // 2. Prepare Updates
-      // We want to ensure both partipants have names stored.
-      // Use proper Firestore dot notation for updating map fields without overwriting
-      Map<String, dynamic> updates = {
-        'participants': FieldValue.arrayUnion([currentUserId, widget.userId]),
-        'participantNames.$currentUserId': myName,
-        'participantNames.${widget.userId}': widget.name,
-      };
-
-      if (!chatDoc.exists) {
-        // Initial creation attributes
-        updates['createdAt'] = FieldValue.serverTimestamp();
-        updates['lastMessage'] = widget.lastMessage.isNotEmpty
-            ? widget.lastMessage
-            : 'Chat started';
-        updates['lastMessageTime'] = FieldValue.serverTimestamp();
-
-        // Creating with set - but we can construct the object cleanly first
-        await chatRef.set({
-          'participants': [currentUserId, widget.userId],
-          'participantNames': {
-            currentUserId: myName,
-            widget.userId: widget.name,
-          },
-          'lastMessage': updates['lastMessage'],
-          'lastMessageTime': updates['lastMessageTime'],
-          'createdAt': updates['createdAt'],
+      String? createdChatId = await chatService.startOrGetChat(widget.userId, widget.name);
+      if (mounted) {
+        setState(() {
+          chatId = createdChatId;
+          isInitializing = false;
         });
 
-        // Add initial message if provided
-        if (widget.lastMessage.isNotEmpty) {
-          await chatRef.collection('messages').add({
-            'text': widget.lastMessage,
-            'senderId': currentUserId,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
+        if (widget.lastMessage.isNotEmpty && chatId != null) {
+          await chatService.sendMessage(chatId!, widget.lastMessage);
         }
-      } else {
-        // Just update the names and ensure participants array is correct
-        await chatRef.update(updates);
       }
     } catch (e) {
-      debugPrint('Error initializing chat: $e');
+      if (mounted) {
+        setState(() {
+          isInitializing = false;
+        });
+      }
     }
-  }
-
-  String _getChatId() {
-    List<String> ids = [currentUserId, widget.userId];
-    ids.sort();
-    return ids.join('_');
   }
 
   Future<void> sendMessage() async {
     String text = messageController.text.trim();
-    if (text.isEmpty || currentUserId.isEmpty) return;
+    if (text.isEmpty || currentUserId.isEmpty || chatId == null) return;
 
     messageController.clear();
-    String chatId = _getChatId();
 
     try {
-      // 1. Add message to subcollection
-      await firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .add({
-            'text': text,
-            'senderId': currentUserId,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-
-      // 2. Update parent chat document (Critical for MessagesPage list)
-      await firestore.collection('chats').doc(chatId).update({
-        'lastMessage': text,
-        'lastMessageTime': FieldValue.serverTimestamp(),
-      });
-
-      // Scroll to bottom
+      await chatService.sendMessage(chatId!, text);
       _scrollController.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     } catch (e) {
-      debugPrint('Error sending message: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    String chatId = _getChatId();
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -462,112 +344,105 @@ class _ChatPageState extends State<ChatPage> {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: firestore
-                  .collection('chats')
-                  .doc(chatId)
-                  .collection('messages')
-                  .orderBy(
-                    'timestamp',
-                    descending: true,
-                  ) // Newest at bottom if reversed
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError)
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: isInitializing
+          ? const Center(child: CircularProgressIndicator())
+          : chatId == null
+              ? const Center(child: Text("Error loading chat"))
+              : Column(
+                  children: [
+                    Expanded(
+                      child: StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: chatService.getChatMessages(chatId!),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Center(child: Text('Error: ${snapshot.error}'));
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('Say Hello! 👋'));
-                }
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return const Center(child: Text('Say Hello! 👋'));
+                          }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true, // Start from bottom
-                  padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var doc = snapshot.data!.docs[index];
-                    var data = doc.data() as Map<String, dynamic>;
-                    bool isMe = data['senderId'] == currentUserId;
+                          return ListView.builder(
+                            controller: _scrollController,
+                            reverse: true, // Start from bottom
+                            padding: const EdgeInsets.all(16),
+                            itemCount: snapshot.data!.length,
+                            itemBuilder: (context, index) {
+                              var data = snapshot.data![index];
+                              bool isMe = data['senderId'] == currentUserId;
 
-                    return Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: ChatBubble(
-                        text: data['text'] ?? '',
-                        isMe: isMe,
-                        time: data['timestamp'] as Timestamp?,
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          // Input Area
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, -3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: messageController,
-                    decoration: InputDecoration(
-                      hintText: "Type a message...",
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide.none,
+                              return Align(
+                                alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                child: ChatBubble(
+                                  text: data['text'] ?? '',
+                                  isMe: isMe,
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: sendMessage,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF276152),
-                      shape: BoxShape.circle,
+
+                    // Input Area
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(0, -3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: messageController,
+                              decoration: InputDecoration(
+                                hintText: "Type a message...",
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                              textCapitalization: TextCapitalization.sentences,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: sendMessage,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF276152),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.send,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -575,13 +450,11 @@ class _ChatPageState extends State<ChatPage> {
 class ChatBubble extends StatelessWidget {
   final String text;
   final bool isMe;
-  final Timestamp? time;
 
   const ChatBubble({
     super.key,
     required this.text,
     required this.isMe,
-    this.time,
   });
 
   @override
@@ -597,12 +470,8 @@ class ChatBubble extends StatelessWidget {
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(16),
           topRight: const Radius.circular(16),
-          bottomLeft: isMe
-              ? const Radius.circular(16)
-              : const Radius.circular(0),
-          bottomRight: isMe
-              ? const Radius.circular(0)
-              : const Radius.circular(16),
+          bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(0),
+          bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(16),
         ),
       ),
       child: Column(

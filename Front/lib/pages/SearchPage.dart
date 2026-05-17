@@ -58,7 +58,7 @@ class _PropertySearchPageState extends State<PropertySearchPage> {
     });
   }
 
-  // ✅ Save to Firestore when user taps a property
+  // ✅ Save to recent searches when user taps a property
   Future<void> _addToRecent(PropertyModel property) async {
     print('💾 Saving to recent searches...');
     print('   Property ID: ${property.propertyId}');
@@ -67,9 +67,9 @@ class _PropertySearchPageState extends State<PropertySearchPage> {
     bool success = await _propertyService.saveRecentSearch(property);
     
     if (success) {
-      print('✅ Successfully saved to Firestore');
+      print('✅ Successfully saved to recent searches');
     } else {
-      print('❌ Failed to save to Firestore');
+      print('❌ Failed to save to recent searches');
     }
   }
 
@@ -176,7 +176,7 @@ class _PropertySearchPageState extends State<PropertySearchPage> {
           onTap: () async {
             print('👆 User tapped on: ${property.title}');
             
-            // ✅ Save to Firestore BEFORE navigation
+            // ✅ Save to recent searches BEFORE navigation
             await _addToRecent(property);
             
             if (mounted) {
@@ -200,7 +200,7 @@ class _PropertySearchPageState extends State<PropertySearchPage> {
     );
   }
 
-  // ✅ Recent Searches from Firestore (StreamBuilder)
+  // ✅ Recent Searches (StreamBuilder)
   Widget _buildRecent() {
     print('📡 Building recent searches widget...');
     

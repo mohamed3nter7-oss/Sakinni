@@ -1,8 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:sakkeny_app/pages/My%20Profile/MyListingsPage%20.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sakkeny_app/services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:sakkeny_app/pages/My Profile/MyAccount.dart';
@@ -18,9 +19,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final fb_auth.User? user = fb_auth.FirebaseAuth.instance.currentUser;
-  final supabase = Supabase.instance.client;
-
   String? _imageUrl;
   String? _name = "";
   String? _lastname = "";
@@ -30,25 +28,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _imageUrl = user?.photoURL;
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
-    if (user == null) return;
-
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user!.uid)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data();
+      final response = await ApiService().dio.get('/auth/me');
+      if (response.data['success'] == true) {
+        final data = response.data['data']['user'];
         setState(() {
-          _name = data?['first name'] ?? "User";
-          _lastname = data?['last name'] ?? "";
-          _imageUrl = data?['profile_image'] ?? user!.photoURL;
+          _name = data['firstName'] ?? "User";
+          _lastname = data['lastName'] ?? "";
+          _imageUrl = data['profileImage'] ?? null;
         });
       }
     } catch (e) {
@@ -57,21 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _deleteOldProfileImage() async {
-    try {
-      if (user?.uid == null) return;
-
-      final possibleFiles = [
-        '${user!.uid}.jpg',
-        '${user!.uid}.jpeg',
-        '${user!.uid}.png',
-        '${user!.uid}.webp',
-      ];
-
-      await supabase.storage.from('profile-images').remove(possibleFiles);
-      debugPrint('Old profile images cleanup attempt finished.');
-    } catch (e) {
-      debugPrint('Note: Cleanup warning: $e');
-    }
+    // Not applicable
   }
 
   Future<void> _uploadProfileImage() async {
@@ -90,77 +67,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      await _deleteOldProfileImage();
+      final Uint8List bytes = await image.readAsBytes();
+      final String mimeType = image.mimeType ?? 'image/jpeg';
+      final String base64Image = 'data:$mimeType;base64,${base64Encode(bytes)}';
 
-      final bytes = await image.readAsBytes();
-      final ext = image.name.split('.').last;
-      final fileName = '${user!.uid}.$ext';
+      final meResponse = await ApiService().dio.get('/auth/me');
+      if (meResponse.data['success'] != true) throw Exception('Could not get user info');
+      final String userId = meResponse.data['data']['user']['_id'];
 
-      await supabase.storage
-          .from('profile-images')
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: FileOptions(upsert: true, contentType: 'image/$ext'),
-          );
+      final updateResponse = await ApiService().dio.patch(
+        '/users/$userId',
+        data: {'profileImage': base64Image},
+      );
 
-      final url = supabase.storage
-          .from('profile-images')
-          .getPublicUrl(fileName);
-
-      final finalUrl = '$url?v=${DateTime.now().millisecondsSinceEpoch}';
-
-      if (user != null) {
-        await user!.updatePhotoURL(finalUrl);
-      }
-
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
-        'profile_image': finalUrl,
-        'email': user!.email,
-        'last_updated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      if (mounted) {
+      if (updateResponse.data['success'] == true) {
         setState(() {
-          _imageUrl = finalUrl;
+          _imageUrl = base64Image;
           _isUploading = false;
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Profile picture updated successfully!'),
-              ],
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile photo updated!'),
+              backgroundColor: Color(0xFF276152),
             ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+          );
+        }
+      } else {
+        throw Exception('Update failed');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isUploading = false;
         });
-        debugPrint('Upload Error: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Error: $e')),
-              ],
-            ),
+            content: Text('Failed to update photo: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -256,9 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => const SavedPage(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const SavedPage()),
                         );
                       },
                     ),
@@ -314,9 +262,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       iconColor: Colors.red,
                       textColor: Colors.red,
                       onTap: () async {
-                        // Sign out from Firebase
-                        await fb_auth.FirebaseAuth.instance.signOut();
-                        
+                        // Sign out from ApiService
+                        await ApiService().logout();
+
                         // Navigate to sign in page
                         Navigator.pushAndRemoveUntil(
                           context,

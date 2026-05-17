@@ -1,11 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/payment.dart';
+import 'api_service.dart';
 
 class PaymentService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
   // Create a payment record
   Future<String?> createPayment({
     required String propertyId,
@@ -16,26 +12,19 @@ class PaymentService {
     required Map<String, dynamic> paymentDetails,
   }) async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
-      final paymentData = {
-        'userId': user.uid,
+      final response = await ApiService().dio.post('/payments', data: {
         'propertyId': propertyId,
         'bookingId': bookingId,
         'amount': amount,
         'currency': currency,
-        'status': 'pending',
         'paymentMethod': paymentMethod,
         'paymentDetails': paymentDetails,
-        'createdAt': FieldValue.serverTimestamp(),
-        'processedAt': null,
-      };
-
-      final docRef = await _firestore.collection('payment').add(paymentData);
-      return docRef.id;
+        'status': 'completed',
+      });
+      if (response.data['success'] == true) {
+        return response.data['data']['payment']?['_id'] ?? response.data['data']?['_id'];
+      }
+      return null;
     } catch (e) {
       print('Error creating payment: $e');
       return null;
@@ -45,17 +34,10 @@ class PaymentService {
   // Update payment status
   Future<bool> updatePaymentStatus(String paymentId, String status, {DateTime? processedAt}) async {
     try {
-      final updateData = {
+      final response = await ApiService().dio.patch('/payments/$paymentId/status', data: {
         'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (processedAt != null) {
-        updateData['processedAt'] = Timestamp.fromDate(processedAt);
-      }
-
-      await _firestore.collection('payment').doc(paymentId).update(updateData);
-      return true;
+      });
+      return response.data['success'] == true;
     } catch (e) {
       print('Error updating payment status: $e');
       return false;
@@ -65,9 +47,9 @@ class PaymentService {
   // Get payment by ID
   Future<PaymentModel?> getPaymentById(String paymentId) async {
     try {
-      final doc = await _firestore.collection('payment').doc(paymentId).get();
-      if (doc.exists) {
-        return PaymentModel.fromFirestore(doc.data()!, doc.id);
+      final response = await ApiService().dio.get('/payments/$paymentId');
+      if (response.data['success'] == true) {
+        return PaymentModel.fromJson(response.data['data']['payment'] ?? response.data['data'], paymentId);
       }
       return null;
     } catch (e) {
@@ -77,21 +59,17 @@ class PaymentService {
   }
 
   // Get payments for current user
-  Stream<List<PaymentModel>> getUserPayments() {
-    final user = _auth.currentUser;
-    if (user == null) {
-      return Stream.value([]);
+  Stream<List<PaymentModel>> getUserPayments() async* {
+    try {
+      final response = await ApiService().dio.get('/payments/my-payments');
+      if (response.data['success'] == true) {
+        List<dynamic> data = response.data['data']['payments'] ?? response.data['data'] ?? [];
+        yield data.map((e) => PaymentModel.fromJson(e, e['_id'] ?? '')).toList();
+      } else {
+        yield [];
+      }
+    } catch (e) {
+      yield [];
     }
-
-    return _firestore
-        .collection('payment')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return PaymentModel.fromFirestore(doc.data(), doc.id);
-          }).toList();
-        });
   }
 }

@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sakkeny_app/services/api_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:sakkeny_app/pages/Startup%20pages/sign_in.dart';
@@ -65,61 +65,47 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  final CollectionReference users = FirebaseFirestore.instance.collection(
-    'users',
-  );
-
-  Future<void> addUserDetails(String uid) async {
-    await users.doc(uid).set({
-      'first name': _firstNameController.text.trim(),
-      'last name': _lastNameController.text.trim(),
-      'phone number': _phoneNumberController.text.trim(),
-      'email': _emailController.text.trim(),
-      'createdAt': Timestamp.now(),
-      'updatedAt': Timestamp.now(),
-      'userId': uid,
-      'isVerified': false,
-    });
-  }
-
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       try {
-        // 1️⃣ Create user in Firebase Auth
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-              email: _emailController.text.trim(),
-              password: _passwordController.text.trim(),
-            );
-
-        final String uid = userCredential.user!.uid;
-
-        // 2️⃣ Save user data in Firestore
-        await addUserDetails(uid);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account created successfully')),
+        final response = await ApiService().dio.post(
+          '/auth/register',
+          data: {
+            'firstName': _firstNameController.text.trim(),
+            'lastName': _lastNameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'password': _passwordController.text.trim(),
+            'phoneNumber': _phoneNumberController.text.trim(),
+          },
         );
 
-        // 3️⃣ Navigate
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => Navigation()),
-        );
-      } on FirebaseAuthException catch (e) {
-        String message = 'Something went wrong';
+        if (response.data['success'] == true) {
+          final accessToken = response.data['data']['accessToken'];
+          final user = response.data['data']['user'];
+          await ApiService().saveAuthData(accessToken, user);
 
-        if (e.code == 'email-already-in-use') {
-          message = 'Email already exists';
-        } else if (e.code == 'weak-password') {
-          message = 'Password is too weak';
-        } else if (e.code == 'invalid-email') {
-          message = 'Invalid email address';
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created successfully')),
+          );
+
+          // ignore: use_build_context_synchronously
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => Navigation()),
+          );
         }
-
+      } on DioException catch (e) {
+        String message = 'Something went wrong';
+        if (e.response?.data != null && e.response?.data['message'] != null) {
+          message = e.response?.data['message'];
+        }
+        
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
       } catch (e) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));

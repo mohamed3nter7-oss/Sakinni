@@ -1,8 +1,17 @@
 const mongoose = require("mongoose");
 
-async function connectDB() {
-  await mongoose.connect("mongodb+srv://kokooromany_db_user:29XTMDTau6EukOp7@sakinnidb.jmoubu2.mongodb.net/");
-  console.log("MongoDB connected");
-}
+const connectDB = async () => {
+  try {
+    await mongoose.connect("mongodb://localhost:27017/sakinni", {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    } );
+
+    console.log("MongoDB Connected");
+  } catch (error) {
+    console.log(error);
+    process.exit(1);
+  }
+};
 
 module.exports = connectDB;
